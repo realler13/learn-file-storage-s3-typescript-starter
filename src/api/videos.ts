@@ -34,6 +34,20 @@ export async function getVideoAspectRatio(filePath: string) {
   return "other";
 }
 
+export async function processVideoForFastStart(inputFilePath: string) {
+  const outputFilePath = inputFilePath + ".processed";
+  const proc = Bun.spawn([
+    "ffmpeg", "-i", inputFilePath, "-movflags", "faststart",
+    "-map_metadata", "0", "-codec", "copy", "-f", "mp4", outputFilePath,
+  ], { stdout: "ignore", stderr: "pipe" });
+  const [stderr, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
+  if (code !== 0) {
+    console.error("ffmpeg failed:", stderr.trim());
+    throw new BadRequestError("Could not process the uploaded video");
+  }
+  return outputFilePath;
+}
+
 export async function handlerUploadVideo(cfg: ApiConfig, req: BunRequest) {
   const { videoId } = req.params as { videoId?: string };
   if (!videoId) {
@@ -70,7 +84,8 @@ export async function handlerUploadVideo(cfg: ApiConfig, req: BunRequest) {
     await Bun.write(tempPath, file);
     const prefix = await getVideoAspectRatio(tempPath);
     const key = `${prefix}/${videoId}.mp4`;
-    await cfg.s3Client.file(key).write(Bun.file(tempPath), {
+    const processedPath = await processVideoForFastStart(tempPath);
+    await cfg.s3Client.file(key).write(Bun.file(processedPath), {
       type: file.type,
     });
 
