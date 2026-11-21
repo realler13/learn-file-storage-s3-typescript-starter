@@ -1,3 +1,4 @@
+import path from "path";
 import { getBearerToken, validateJWT } from "../auth";
 import { respondWithJSON } from "./json";
 import { getVideo, updateVideo } from "../db/videos";
@@ -38,8 +39,15 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
     throw new UserForbiddenError("Not authorized to upload this thumbnail");
   }
 
-  const base64 = Buffer.from(data).toString("base64");
-  video.thumbnailURL = `data:${mediaType};base64,${base64}`;
+  const extension = mediaType.split("/")[1];
+  if (!extension) {
+    throw new BadRequestError("Thumbnail must have a valid media type");
+  }
+  const filename = `${videoId}.${extension}`;
+  const filepath = path.join(cfg.assetsRoot, filename);
+  await Bun.write(filepath, data);
+
+  video.thumbnailURL = `http://localhost:${cfg.port}/assets/${filename}`;
   updateVideo(cfg.db, video);
 
   return respondWithJSON(200, video);
