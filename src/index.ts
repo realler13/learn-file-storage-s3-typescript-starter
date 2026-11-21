@@ -22,6 +22,7 @@ ensureAssetsDir(cfg);
 
 Bun.serve({
   port: Number(cfg.port),
+  maxRequestBodySize: (1 << 30) + (1 << 20),
   development: cfg.platform === "dev",
   routes: {
     "/": spa,
